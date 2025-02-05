@@ -1,0 +1,104 @@
+--// FIRST PART
+--// Cache
+
+local select = select
+local pcall, getgenv, next, Vector2, mathclamp, type, mousemoverel =
+    select(1, pcall, getgenv, next, Vector2.new, math.clamp, type, mousemoverel or (Input and Input.MouseMove))
+
+--// Preventing Multiple Processes
+pcall(function()
+    getgenv().Aimbot.Functions:Exit()
+end)
+
+--// Environment
+getgenv().Aimbot = {}
+local Environment = getgenv().Aimbot
+
+--// Services
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+--// Variables
+local RequiredDistance, Typing, Running, ServiceConnections = 2000, false, false, {}
+
+--// Script Settings
+Environment.Settings = {
+    Enabled = true,
+    TeamCheck = false,
+    AliveCheck = true,
+    WallCheck = false,
+    Sensitivity = 1.5, -- Smoothness for aiming
+    TriggerKey = "MouseButton2",
+    Toggle = false,
+    LockPart = "Head"
+}
+
+--// FOV Settings (Fixed & Restored)
+Environment.FOVSettings = {
+    Enabled = true,
+    Visible = true,
+    Amount = 90,
+    Color = Color3.fromRGB(255, 255, 255),
+    LockedColor = Color3.fromRGB(255, 70, 70),
+    Transparency = 0.5, -- Fixed transparency setting
+    Sides = 60,
+    Thickness = 1,
+    Filled = false -- Fixed: Set to false as per your request
+}
+
+--// FOV Circle (Ensuring Transparency Works)
+Environment.FOVCircle = Drawing.new("Circle")
+Environment.FOVCircle.Filled = Environment.FOVSettings.Filled
+Environment.FOVCircle.Transparency = Environment.FOVSettings.Transparency
+Environment.FOVCircle.NumSides = Environment.FOVSettings.Sides
+Environment.FOVCircle.Thickness = Environment.FOVSettings.Thickness
+Environment.FOVCircle.Visible = false
+
+--// Functions
+local function CancelLock()
+    Environment.Locked = nil
+    Environment.FOVCircle.Color = Environment.FOVSettings.Color
+end
+
+local function GetClosestPlayer()
+    local shortestDistance = Environment.FOVSettings.Enabled and Environment.FOVSettings.Amount or 2000
+    local closestPlayer = nil
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local targetPart = player.Character:FindFirstChild(Environment.Settings.LockPart)
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+
+            if targetPart and humanoid and humanoid.Health > 0 then
+                if Environment.Settings.TeamCheck and player.Team == LocalPlayer.Team then continue end
+                if Environment.Settings.WallCheck and #Camera:GetPartsObscuringTarget({targetPart.Position}, {player.Character}) > 0 then continue end
+
+                local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                local distance = (Vector2(UserInputService:GetMouseLocation().X, UserInputService:GetMouseLocation().Y) - Vector2(screenPos.X, screenPos.Y)).Magnitude
+
+                if onScreen and distance < shortestDistance then
+                    shortestDistance = distance
+                    closestPlayer = player
+                end
+            end
+        end
+    end
+
+    if closestPlayer then
+        Environment.Locked = closestPlayer
+    else
+        CancelLock()
+    end
+end
+
+--// Typing Check
+ServiceConnections.TypingStarted = UserInputService.TextBoxFocused:Connect(function()
+    Typing = true
+end)
+
+ServiceConnections.TypingEnded = UserInputService.TextBoxFocusReleased:Connect(function()
+    Typing = false
+end)
